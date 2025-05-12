@@ -1,0 +1,593 @@
+#include <cstdint>
+#include <cmath>
+#include <iostream>
+#include <iterator>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
+#include <vector>
+#include <numeric>
+#include <string>
+#include <tuple>
+#include <algorithm>    // std::max
+#include <map>
+#include <chrono>
+#include <thread>
+
+using namespace std;
+//namespace rg = std::ranges;
+
+const static int LINE_NUMBERS = 3;
+//Determined range of input parameters: (K<= N <= M) both in [2, 100000]
+const static int MAX_M = 100001;
+const static int MIN_N = 2;
+const static int MIN_K = 0;
+//will be used for each pair of 2 points(ordered pair) <-> distance from first to second 
+typedef std::multimap<int64_t, std::pair<int64_t, int64_t>> IntCoordDistMap;
+
+std::tuple<vector<int64_t>, vector<int64_t>, vector<int64_t>> read_cin(){
+    //The corresponding number of input lines
+    //and auxiliary variables to accept them
+    int64_t i = LINE_NUMBERS-1;
+    int64_t initial_val = 0;
+    vector<int64_t> initial_vec(3, initial_val); 
+    vector<vector<int64_t>> vec_total(3, initial_vec);
+    //if j==LINE_NUMBERS the block would not execute, so the last is j==2
+    //in sum number of loops=3: 0,1,2.
+    for(int64_t j = 0; j!=LINE_NUMBERS; j++){
+        if (j == 0){
+        //First line contain 3 digits
+        vec_total.at(j).reserve(3);
+        }
+        if (j > 0 ){
+        vec_total.at(j).reserve(MAX_M);
+        }
+    }
+    //for ( int64_t j = 0; j!=static_cast<int64_t>(vec_total.size()); j++){
+    //    for (int64_t k = 0; k!=1; k++){
+    //    }
+    //}
+    //Now get lines one by one from cin to string
+    std::string line_i;
+    int64_t j = 0;
+    int64_t k = 0;
+    
+    while (std::getline(cin, line_i, '\n') && i >=0){
+        std::istringstream iss(line_i);
+        int64_t n;
+        std::vector<int64_t> v;
+       
+        while (iss >> n)
+        {
+          v.push_back(static_cast<int64_t>(n));
+        }
+        if (i == LINE_NUMBERS - 1){
+            k = v.at(2);
+            vec_total.at(0) = std::move(v);
+
+            i--;
+        }
+        else if (i == LINE_NUMBERS - 2){
+            vec_total.at(1) = std::move(v);
+            i--;
+        }
+        else if ((i == LINE_NUMBERS - 3) && k!=0){
+            vec_total.at(2) = std::move(v);
+            i--;
+        }
+        else {
+            i--;
+        }
+        j++;
+        //The 3rd line is optional if k ==0
+        if (i==0 && k==0){
+            break;
+        }
+        bool end_of_lines = ((i==LINE_NUMBERS - 4) && k!=0);
+        if (end_of_lines){
+            break;
+        }
+    }
+    return std::tuple<vector<int64_t>, vector<int64_t>, vector<int64_t>>(vec_total.at(0), vec_total.at(1), vec_total.at(2));
+}
+template <typename T>
+bool all_elements_equal(vector<T> const &v){
+    return adjacent_find(v.begin(),v.end(), not_equal_to<T>()) == v.end();
+}
+template <typename SEP, typename ELEM_T>
+void PRINT_VEC_WITH(const vector<ELEM_T>& vec_to_display, SEP separator){
+        //cout<<"Equal?(except the mid-point) : "<< equality_of_elements<<endl;
+    for (const auto & bcf : vec_to_display){
+        //Just pretty print
+        if (all_elements_equal(vec_to_display)){
+           cout<<bcf<<" "<<separator<<" ";
+        }
+        else if(bcf !=*(vec_to_display.end() -1)){
+        cout<<bcf<<" "<<separator<<" ";}
+        else{
+           cout<<bcf<<endl;
+        }
+    }
+}
+
+template <typename VEL>
+vector<VEL> erase_all_with_val(vector<VEL> vec_to_cut, VEL redundant_el){
+    vec_to_cut.erase(
+            remove(vec_to_cut.begin(), vec_to_cut.end(), 
+            static_cast<VEL>(redundant_el)), vec_to_cut.end());
+    auto ret = vec_to_cut;
+    return ret;
+}
+template <int IDX, int MAX, typename ... ARGS>
+struct PRINT_TUPLE {
+    static void print_t(ostream& strm, const tuple<ARGS ...>& t){
+        strm<< get<IDX>(t) << (IDX+1 == MAX? "" : ",");
+        PRINT_TUPLE<IDX+1, MAX, ARGS ...>::print_t(strm, t);
+    }
+};//End of recursion
+template <int MAX, typename ... ARGS>
+struct PRINT_TUPLE<MAX, MAX, ARGS ...> {
+    static void print_t(ostream& strm, const tuple<ARGS ...>& t){
+    }
+};
+template < typename ... ARGS>
+ostream& operator << (ostream& strm, const tuple<ARGS ...>& t){
+    strm<<"[";
+    PRINT_TUPLE<0, sizeof ... (ARGS), ARGS ... >::print_t(strm, t);
+    strm<<"]";
+}
+template <typename VEL>
+vector<VEL> erase_occupied_beds(vector<VEL> bed_coords_occupied, vector<VEL> bed_coords_free){
+    for (const auto & bco : bed_coords_occupied){
+        //cout<<"Let's remove "<<bco<<" \n";
+        auto pos_bco = find(bed_coords_free.begin(), bed_coords_free.end(), bco);
+        if (pos_bco != bed_coords_free.end()){
+            bed_coords_free.erase(pos_bco);
+        }
+    }
+    return bed_coords_free;
+}
+auto now() 
+{
+  return std::chrono::steady_clock::now(); 
+}
+
+// Function calculating sleep time 
+// with 2000ms delay
+auto awake_time()
+{
+  using std::chrono::operator"" ms;
+  return now() + 2000ms;
+}
+//Above helper fs and input treatment, below - initialization of variables |---------
+template <typename VEL>
+void init_occupied_vec(vector<VEL> coords_occupied, vector<VEL>& bed_coords_occupied){
+    coords_occupied = erase_all_with_val<int64_t>(coords_occupied, 0);
+    bed_coords_occupied.reserve(coords_occupied.size());
+    if (!coords_occupied.empty()){
+        //copy
+        bed_coords_occupied = coords_occupied;
+    }
+    else{
+        bed_coords_occupied.clear();
+    }
+    //return bed_coords_occupied;
+}
+//|Implementations------------------------------------------------------------
+tuple<vector<int64_t>, vector<pair<int64_t, int64_t>>, vector<pair<int64_t, int64_t>>> dists_to_the_nearest_bed(vector<int64_t> all_bed_coords,
+    const vector<int64_t>& almost_all_beds,  int64_t cur_elem, auto cur_elem_loc, int64_t cur_pos_one_d_rel, vector<int64_t> dists,
+    int64_t currant_iter, int64_t amount_of_equal_values, bool all_the_way){
+    //indexes will be of size = size(all_beds) - currant_pos(which may be equal 0)
+    //Traversion begins from currant_pos up to end of vector if all_the_way
+   // PRINT_VEC_WITH<string, int64_t>(almost_all_beds, ",");
+    auto aab_size = almost_all_beds.size();
+    int64_t pair_init = 0;
+    pair<int64_t, int64_t> pair_i = make_pair(pair_init, pair_init);
+    //It's important to choose which prms will be coordinates, by def cur elem, 
+    //else it's position in all_beds
+    vector<pair<int64_t, int64_t>> coordinates_values_ordered;
+    vector<pair<int64_t, int64_t>> coordinates_posvec_ordered;
+    coordinates_values_ordered.reserve(aab_size);
+    coordinates_posvec_ordered.reserve(aab_size);
+    if(all_the_way){
+        vector<pair<int64_t, int64_t>> coordinates(static_cast<int64_t>(aab_size),
+            pair_i);
+        coordinates_values_ordered.swap(coordinates);
+        coordinates_posvec_ordered = coordinates_values_ordered;
+        coordinates.clear();
+        //all_the_way is used to control number of the indexes(also coordinates_values_ordered size)
+        //From 0 up to (aab_size - amount_of_equal_values -1) available indexes
+        vector<int64_t> indexes(aab_size);
+        iota(indexes.begin(), indexes.end(), 0);
+        //From one fixed element to each in almost_all_beds, until a penultimate.
+        //(otherwise on the last min will throw) 
+        for (int64_t i : indexes){
+            int64_t cur_compared_elem = almost_all_beds.at(i);
+            int64_t diff =  abs(cur_elem - static_cast<int64_t>(cur_compared_elem));
+            //Size of dists == size of almost_all_beds
+            bool opt_a = abs(i - cur_pos_one_d_rel)!= aab_size-1;
+            bool opt_b = abs(i - cur_pos_one_d_rel)==0;
+            bool opt_c = i == aab_size-1;
+            //if (abs(i - cur_pos_one_d_rel)==0 && abs(i - cur_pos_one_d_rel)!= aab_size-1){
+            //    continue;}
+            //if (i == aab_size-1){
+            //    i = cur_pos_one_d_rel; }
+            dists.at(i) = static_cast<int64_t>(diff);
+            //First fill value coords, then relative iter positions(as coords)
+            pair<int64_t, int64_t> cur_to_i = make_pair(cur_elem, cur_compared_elem);
+            coordinates_values_ordered.at(i) = cur_to_i;
+            //Then iters pos
+        auto first = all_bed_coords.begin();
+        auto last = all_bed_coords.end();
+        auto cur_compared_pos_one = find(first, last, cur_compared_elem);
+        int64_t it2 =  static_cast<int64_t>(distance(all_bed_coords.begin(), cur_compared_pos_one));
+        int64_t it1 =  static_cast<int64_t>(distance(all_bed_coords.begin(), cur_elem_loc));
+        int64_t coord_cur = static_cast<int64_t>(it1 > it2? std::abs(it1 - it2) : std::abs(it2 - it1));
+        coordinates_posvec_ordered.at(i) = make_pair(it1, it2);
+        }
+    }
+    else{
+        vector<pair<int64_t, int64_t>> coordinates(static_cast<int64_t>(aab_size) - currant_iter,
+            pair_i);
+        coordinates_values_ordered.swap(coordinates);
+        coordinates.clear();
+        coordinates_posvec_ordered = coordinates_values_ordered;
+        //Now I want to traverse only the forward elements of the almost_all_beds
+        //with respect to the current center element, so the AAB - i -2 is the last index avail.
+        vector<int64_t> indexes(aab_size - currant_iter);
+        iota(indexes.begin(), indexes.end(), 0);
+        //From one fixed element to each in almost_all_beds
+        for (int64_t i : indexes){ //I will try to transverse in ascending order all difference values
+            int64_t k =  currant_iter + i;
+            int64_t cur_compared_elem = almost_all_beds.at(k);
+            //cout<<i<<": "<<" & kth element from others: "<<cur_compared_elem<<endl;
+            int64_t diff =  abs(cur_elem - static_cast<int64_t>(cur_compared_elem));
+            //cout<<"difference of nearby elements: "<<diff<<endl;
+            //Size of dists == size of almost_all_beds
+            //if (abs(i - cur_pos_one_d_rel)==0 && abs(i - cur_pos_one_d_rel)!= aab_size-1){
+            //    continue;}
+            //if (i == aab_size-1){
+            //    i = cur_pos_one_d_rel; }
+            //Size of dists == size of almost_all_beds
+            dists.at(i) = static_cast<int64_t>(diff);
+            //First fill value coords, then relative iter positions(as coords)
+            pair<int64_t, int64_t> cur_to_i = make_pair(cur_elem, cur_compared_elem);
+            coordinates_values_ordered.at(i) = cur_to_i;
+            //Then iters pos
+            auto first = all_bed_coords.begin();
+            auto last = all_bed_coords.end();
+            auto cur_compared_pos_one = find(first, last, cur_compared_elem);
+            int64_t it2 =  static_cast<int64_t>(distance(all_bed_coords.begin(), cur_compared_pos_one));
+            int64_t it1 =  static_cast<int64_t>(distance(all_bed_coords.begin(), cur_elem_loc));
+            int64_t coord_cur = static_cast<int64_t>(it1 > it2? std::abs(it1 - it2) : std::abs(it2 - it1));
+            coordinates_posvec_ordered.at(i) = make_pair(it1, it2);
+        }
+    }
+    dists = static_cast<vector<int64_t>>(dists);
+    coordinates_values_ordered = static_cast<vector<pair<int64_t, int64_t>>>(coordinates_values_ordered);
+    //PRINT_VEC_WITH<string, int64_t>(dists, ",");
+    return tuple<vector<int64_t>, vector<pair<int64_t, int64_t>>, vector<pair<int64_t, int64_t>>>(dists, 
+        coordinates_values_ordered, coordinates_posvec_ordered);
+};
+
+//beds_to_traverse - the initial points from which to calculate distances
+//beds_to_combine - either free or occupied, to merge with others
+template <typename VEL>
+std::tuple<IntCoordDistMap,IntCoordDistMap, vector<int64_t>,  vector<vector<int64_t>>, int64_t> 
+traverse_beds(vector<int64_t> all_bed_coords, 
+vector<VEL> beds_to_traverse, vector<VEL> beds_to_combine, 
+vector<int64_t> minimum_dists, vector<vector<int64_t>> total_distances, 
+VEL all_beds_num,VEL next_iter, bool all_the_way = false){
+    auto traverse_size = beds_to_traverse.size();
+    IntCoordDistMap coord_distances_values;
+    IntCoordDistMap coord_distances_positions;
+    //There will be 0,1, ... incr_range.size()-1
+    vector<int64_t> incr_range(traverse_size);
+    iota(incr_range.begin(), incr_range.end(), 0);
+    //At the end this will be the index of the array(which starts with 0)(in code that follows)
+    for (int64_t i: incr_range){
+        int64_t cur_center_elem = beds_to_traverse[i];
+        // Element to be searched: cur_center_elem
+        // Defining range as the whole bed positions
+        auto first = all_bed_coords.begin();
+        auto last = all_bed_coords.end();
+
+        // Searching for key in the range [first, last)
+        auto cur_pos_one = find(first, last, cur_center_elem);
+        //First arg for not random-accessed itrs must be located before the sec
+        int64_t cur_pos_one_d =  static_cast<int64_t>(distance(all_bed_coords.begin(), cur_pos_one));
+        // Checking if element is found or not
+        
+        //copy to assign later all elements but other than the current!
+        vector<int64_t> other_points = beds_to_traverse;
+        //Erase all elements with value cur_center_elem
+        //(There is only one so ... this is just a slight generalization)
+        //Objective: calculate all predefined distances to free beds
+        other_points = erase_all_with_val<int64_t>(other_points, cur_center_elem);
+        //Always >=0, be careful with unsigned arithmetic.
+        int64_t number_of_equal_elements = 
+            static_cast<int64_t>(beds_to_traverse.size()) - static_cast<int64_t>(other_points.size());
+        int64_t h = all_beds_num - number_of_equal_elements;
+        vector<int64_t> dists_to_others(h, 0);
+        //To check distance from this elem to all in the below vec
+        vector<int64_t> others_and_opposite_beds(h);
+        vector<int64_t> all_opposite_beds(h);
+        int64_t rel_cur_pos = 0;
+        //Other way to simply delete cur_elem from all_beds!
+        if (!beds_to_combine.empty()){
+            std::merge(beds_to_combine.begin(), beds_to_combine.end(),
+                other_points.begin(), other_points.end(), back_inserter(others_and_opposite_beds));
+            std::merge(beds_to_combine.begin(), beds_to_combine.end(),
+                beds_to_traverse.begin(), beds_to_traverse.end(), back_inserter(all_opposite_beds));
+            sort(all_opposite_beds.begin(), all_opposite_beds.end());
+            sort(others_and_opposite_beds.begin(), others_and_opposite_beds.end());
+        auto cur_pos_one_relative = find(all_opposite_beds.begin(), all_opposite_beds.end(), cur_center_elem);
+        //First arg for not random-accessed itrs must be located before the sec
+        int64_t cur_pos_one_d_relative =  static_cast<int64_t>(distance(all_bed_coords.begin(), cur_pos_one));
+        if (cur_pos_one_relative != all_bed_coords.end()){
+            rel_cur_pos = cur_pos_one_d_relative;
+        }
+            //Consequence of using merge: if all elements = 0 (of other_points) but the size still remains the same!  
+            others_and_opposite_beds = erase_all_with_val<int64_t>(others_and_opposite_beds, 0); 
+            //this_thread::sleep_for(chrono::milliseconds(3000));
+        }
+        else{
+            //calculate distances only beetween beds_to_traverse.
+            //This means that i don't want to calculate already calculated on prev step
+            others_and_opposite_beds = other_points;
+            sort(others_and_opposite_beds.begin(), others_and_opposite_beds.end());
+            rel_cur_pos = i;
+        }
+        vector<int64_t> dist_to_nearest_traversed = dists_to_others;
+        vector<pair<int64_t, int64_t>> pair_coords_values;
+        vector<pair<int64_t, int64_t>> pair_coords_positions;
+        //Core func to calc distances, necessity:
+        //other points, current element, position of it in all_beds, where to save(size = h), 
+        //
+        tie(dist_to_nearest_traversed, pair_coords_values, pair_coords_positions) = 
+            dists_to_the_nearest_bed(all_bed_coords, others_and_opposite_beds, cur_center_elem,
+            cur_pos_one, rel_cur_pos, dists_to_others, i, number_of_equal_elements, all_the_way);
+            //for (auto [a,b] : zip(dist_to_nearest_traversed, pair_coords))
+            auto xi = dist_to_nearest_traversed.begin();
+            auto yi = pair_coords_values.begin();
+            auto zi = pair_coords_positions.begin();
+            while (xi != dist_to_nearest_traversed.end() and yi != pair_coords_values.end() and zi != pair_coords_positions.end())
+              {
+                auto x = *xi++;
+                auto y = *yi++;
+                auto z = *zi++;
+                coord_distances_values.insert(std::pair<const int64_t, std::pair<int64_t, int64_t>>{x, std::make_pair(y.first, y.second)});
+                coord_distances_positions.insert(std::pair<const int64_t, std::pair<int64_t, int64_t>>{x, std::make_pair(z.first, z.second)});
+              }
+              //////for (auto const &[k, v] : coord_distances_values)
+                //std::cout << "Distance at the point (" << v.first << ", " << v.second << ") = " << k << std::endl;
+        //To find minimum !=0 Self-made stuff |----------------------------------------
+        vector<int64_t> dist_to_nearest_traversed_copy = dist_to_nearest_traversed;
+        dist_to_nearest_traversed_copy = erase_all_with_val<int64_t>(dist_to_nearest_traversed_copy, 0);
+        //Find min distance at i
+        stable_sort(dist_to_nearest_traversed_copy.begin(), dist_to_nearest_traversed_copy.end());
+        //PRINT_VEC_WITH<string, int64_t>(dist_to_nearest_traversed_copy, "&");
+        auto min_dist = min_element(dist_to_nearest_traversed_copy.begin(), dist_to_nearest_traversed_copy.end());
+        if (min_dist!= dist_to_nearest_traversed_copy.end()){
+        if(!beds_to_combine.empty()){
+            //2nd in min_vec and 3rd method to find appropriate distances in matrix
+            total_distances.at(i) = dist_to_nearest_traversed;
+            minimum_dists.at(i) = *min_dist;
+        }
+        else{
+            //next_iter was as index, now as size.
+        //The last element, by cond bed_coords_free>=bed_coords_occupied, so needed only here.
+        if(*min_dist !=0){
+            auto next_term = i+(next_iter+1);
+            //cout<<next_term<<"th cycle in assignment of general matrix! "<<endl;
+            if (next_term>=minimum_dists.size()){
+                 minimum_dists.resize(minimum_dists.size() * 2);
+            }
+            if (next_term>=total_distances.size()){
+                 total_distances.resize(total_distances.size() * 2);
+            }
+            //PRINT_VEC_WITH<string, int64_t>(dist_to_nearest_traversed, "&");
+            total_distances.at(i+(next_iter+1)) = dist_to_nearest_traversed;
+            minimum_dists.at(i+(next_iter+1)) = *min_dist;
+            }
+        }
+        }
+    }
+    next_iter = next_iter+ *(incr_range.end()-1);
+    return std::tuple<IntCoordDistMap, IntCoordDistMap, vector<int64_t>,  vector<vector<int64_t>>, int64_t>(
+        coord_distances_values, coord_distances_positions,
+        minimum_dists, total_distances, next_iter); 
+}
+typedef std::pair<int64_t, std::pair<int64_t, int64_t>> CoordPair;
+struct ComparePermutation
+{
+    bool operator()(const CoordPair& left, const CoordPair& right) const
+    {
+        return left.second.first == right.second.second and left.second.second == right.second.first;
+    }
+};
+
+struct pair_comp{
+    bool operator()(const std::pair<int64_t, int64_t>& a, const std::pair<int64_t, int64_t>& b){
+        return a.first>b.first;
+    }
+};
+
+bool check_key(map<std::pair<int64_t, int64_t>, int64_t> m, std::pair<int64_t, int64_t> key)
+{
+    // Key is not present
+    if (m.count(key) == 0)
+        return true;
+
+    return false;
+}
+
+vector<int64_t> get_associate_coordinate_to_mean_value(IntCoordDistMap &coord_dist, int64_t pet_limit){
+    //Imprimis get reed of the duplicate coordinates(map don't have them)
+    map<std::pair<int64_t, int64_t>, int64_t> new_map;
+    //Remove permutations
+    for(auto const &[k, v] : coord_dist)
+{
+    auto new_key = v.first > v.second? v : make_pair(v.second, v.first);
+    if(check_key(new_map, new_key)){
+        new_map[new_key] = k;
+    }
+    else{
+        continue;
+    }
+    
+}
+//for(auto const &[k, v] : new_map)
+    //std::cout << "New map: \n"<<v << " " << k.first << " " << k.second << "\n";
+    //Here is the result vec
+    vector<int64_t> pet_line(pet_limit, 0);
+    for(auto i = 0; i!= pet_limit; i++){
+    auto it = std::min_element(std::begin(new_map), std::end(new_map),
+                           [](const auto& l, const auto& r) { return l.second < r.second; });
+    int64_t new_val = (it == new_map.end() ? -1 : it->second);
+    pet_line.push_back(new_val);
+    }
+  return pet_line; 
+}
+
+//Idea is quite simple: in every row find minimum, create vector of row_mins(matrix_min), find 
+    //num_of_cats times minimum there
+int64_t matrix_traverse(vector<vector<int64_t>> &dists_total, int64_t num_of_cats){
+    vector<int64_t> matrix_min(num_of_cats, 0);
+    size_t mind = 0;
+    size_t rind = 0;
+    //cout<<"Find min in every row, from occupied(first occupied_beds_num rows), and others.\n"<<
+    //    "This is done to ensure local and global min"<<endl;
+    for (auto k =0; k!= num_of_cats; k++){
+        vector<int64_t> row_min(dists_total.size(), 0);
+        rind = 0;
+        for (auto const i : dists_total){
+            vector<int64_t> row_without_zeros = erase_all_with_val<int64_t>(i, 0);
+            auto it = min_element(std::begin(row_without_zeros), std::end(row_without_zeros));
+            if (it!= row_without_zeros.end()){
+                row_min.at(rind) = *it;
+            }
+            else{
+                row_min[rind] = -1;
+            }
+            rind++;
+        //if (rind>=row_min.size()){
+        //    break;}
+        }
+        
+        row_min = erase_all_with_val<int64_t>(row_min, -1);
+        auto min_in_rows = min_element(std::begin(row_min), std::end(row_min));
+        auto dist_to_prev_min = std::distance(row_min.begin(), min_in_rows);
+        dists_total.erase(dists_total.begin()+ dist_to_prev_min);
+        //cout<<*min_in_rows<<"- matrix min "<<endl;
+        matrix_min[mind] = static_cast<int64_t>(*min_in_rows);
+        mind++;
+    }
+        return accumulate(matrix_min.begin(), matrix_min.end(), 0);
+}
+
+
+int main()
+{
+    /*Amount of cats- N, all beds - M, occupied beds - k,
+    others are the integer coordinates(one dimensional) of all beds, then occupied ones */
+    auto [gen_nums, all_coords, coords_occupied] = read_cin();
+    /*By description of the task: I need the worst case
+    of arrangement of cats in terms of function of joy
+    which means maximum optimisation concerning the case where
+    the number of cats < number of beds                    */
+    int64_t num_of_cats = gen_nums[0];
+    int64_t all_beds_num = gen_nums[1];
+    int64_t occupied_beds_num = gen_nums[2];
+    //The next variables store specific coordinates for
+    //1 free beds(all minus occupied) 2 occupied beds 3 all possible beds
+    vector<int64_t> all_bed_coords = all_coords;
+    //Later will adjust to be free of occupied, just init state
+    vector<int64_t> bed_coords_free = all_coords;
+    vector<int64_t> bed_coords_occupied;
+    //it's just program feature only, by def consists of 0s if k==0
+    //by erasing the initial array remains intact(by val), so turn to modified
+    init_occupied_vec<int64_t>(coords_occupied, bed_coords_occupied);
+    std::sort(bed_coords_free.begin(), bed_coords_free.end());
+    std::sort(bed_coords_occupied.begin(), bed_coords_occupied.end());
+    //Assumption! All coordinates on the line are different.
+    //(So all_bed_coords contain no duplicates)
+    sort(all_bed_coords.begin(), all_bed_coords.end());
+    //By definition: bed_coords_free = all - occupied as sets 
+    //So copy all beds from output into independent variable
+    bed_coords_free = erase_occupied_beds(bed_coords_occupied, bed_coords_free);
+    //Check newly updated
+    //PRINT_VEC_WITH<string, int64_t>(bed_coords_free, "&");
+    //The end of initialization: Main vars are all, free, occupied beds(sorted)|----------
+    int64_t bfs = static_cast<int64_t>(bed_coords_free.size());
+    int64_t bos = static_cast<int64_t>(bed_coords_occupied.size());
+    //occupied_beds_num == bos, all_beds_num - occupied_beds_num == bfs, abbreviations
+    //Array for storing pairwise distances of nearby points, size the same
+    //Initial purpose: fix one in traverse vec, calc dists to others
+    //(=> all_beds_num -1, but it's simpler in loop to include this same element)
+    //But! Distances might have duplicates(ex. 5-2 = 6-3) => use multimap
+    int64_t initial_val = 0;
+    vector<int64_t> dists(all_beds_num, initial_val);
+    //Because I created identity matrix- size the same(fix from vec, then use this same vec)
+    vector<vector<int64_t>> dists_total(all_beds_num+1, dists);
+    //As another way around. The same as dists to calc min.
+    vector<int64_t> minimum_from_occupied_dists(all_beds_num, initial_val);
+    vector<int64_t> minimum_from_free_dists(all_beds_num, initial_val);
+    IntCoordDistMap coord_distances_occ_values;
+    IntCoordDistMap coord_distances_occ_positions;
+    IntCoordDistMap coord_distances_free_values;
+    IntCoordDistMap coord_distances_free_positions;
+    //There will be 0,1, ... incr_range.size()-1
+    vector<int64_t> incr_range(bos);
+    iota(incr_range.begin(), incr_range.end(), 0);
+    //First traverse occupied vec: from occupied couch to all! others
+    int64_t next_iter = 0;
+    if (!bed_coords_occupied.empty()){
+        //I need 1 all_bed_coords to find position of current element in the whole num of couches and then save it
+        //2 - 5th prms specify the essence of func, then auxiliary to connect with loop:
+        //all_beds_num ok, next_iter to continue from where I would come to a halt, etc.
+        tie(coord_distances_occ_values, coord_distances_occ_positions, minimum_from_occupied_dists, dists_total, next_iter) = 
+        traverse_beds(all_bed_coords, bed_coords_occupied, bed_coords_free, 
+        minimum_from_occupied_dists, dists_total, 
+        all_beds_num, next_iter, true);
+    }
+    //Then traverse free vec, empty_com-to traverse only free couches, false means to count only forward elements 
+    vector<int64_t> empty_com;
+    tie(coord_distances_free_values, coord_distances_free_positions, minimum_from_free_dists, dists_total, next_iter) = 
+    traverse_beds(all_bed_coords,  bed_coords_free, empty_com, 
+        minimum_from_free_dists, dists_total, 
+        all_beds_num, next_iter, true);
+    //--------------------------------------------------------------
+    //All other stuff is self-made, not accurate, to cout what is needed
+    vector<int64_t> ocpet_line(occupied_beds_num, 0);
+    vector<int64_t> freepet_line(num_of_cats - occupied_beds_num, 0);
+    ocpet_line = get_associate_coordinate_to_mean_value(coord_distances_occ_values, occupied_beds_num);
+    freepet_line = get_associate_coordinate_to_mean_value(coord_distances_free_values, num_of_cats - occupied_beds_num);
+    vector<int64_t> res_dists(dists_total.size(), 0);
+    minimum_from_occupied_dists = erase_all_with_val<int64_t>(minimum_from_occupied_dists, 0);
+    std::stable_sort(minimum_from_occupied_dists.begin(), minimum_from_occupied_dists.end());
+    std::stable_sort(minimum_from_free_dists.begin(), minimum_from_free_dists.end());
+    //But i recognized that I only need to calc distances from free to all, if occupied fixed
+    vector<int64_t> min_free;
+    minimum_from_free_dists = erase_all_with_val<int64_t>(minimum_from_free_dists, 0);
+    min_free.assign(minimum_from_free_dists.begin(), 
+    minimum_from_free_dists.begin() + num_of_cats);
+    int64_t occ_sum_1 = accumulate(ocpet_line.begin(), ocpet_line.end(), 0);
+    int64_t free_sum_1 = accumulate(freepet_line.begin(), freepet_line.end(), 0);
+    //int64_t all_sum_1 = accumulate(all_line.begin(), all_line.end(), 0);
+    int64_t occ_sum_2 = accumulate(minimum_from_occupied_dists.begin(), minimum_from_occupied_dists.begin() + occupied_beds_num, 0);
+    int64_t free_sum_2 = accumulate(min_free.begin(), min_free.begin() +  (num_of_cats - occupied_beds_num), 0);
+    //cout<<occ_sum_1 + free_sum_1;//<<" and all "<<all_sum_1<< endl;
+    //cout<<occ_sum_2 + free_sum_2<< endl;
+
+    //auto ds = dists_total.size();
+    //make_tuple( 0, dists_total.size() )
+    
+    //cout<< matrix_traverse(dists_total, num_of_cats);
+    /*cout<<"Result matrix 3: ";
+    for ( auto & k : dists_total){
+        k = erase_all_with_val<int64_t>(k, 0);
+    }*/
+    cout<< matrix_traverse(dists_total, num_of_cats);
+    return 0;
+}
