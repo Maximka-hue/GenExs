@@ -1,0 +1,113 @@
+#include <cstdint>
+#include <cmath>
+#include <iostream>
+#include <iterator>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
+#include <vector>
+#include <numeric>
+#include <string>
+#include <tuple>
+#include <algorithm>    // std::max
+#include <functional> 
+
+using namespace std;
+//The program will receive two lines of arguments and 
+//restriction of the first from 1 up to 10^5
+const static int LINE_NUMBERS = 2;
+const static int MAX_N = 100001;
+
+template <int IDX, int MAX, typename ... ARGS>
+struct PRINT_TUPLE {
+    static void print_t(ostream& strm, const tuple<ARGS ...>& t){
+        strm<< get<IDX>(t) << (IDX+1 == MAX? "" : ",");
+        PRINT_TUPLE<IDX+1, MAX, ARGS ...>::print_t(strm, t);
+    }
+};//End of recursion
+template <int MAX, typename ... ARGS>
+struct PRINT_TUPLE<MAX, MAX, ARGS ...> {
+    static void print_t(ostream& strm, const tuple<ARGS ...>& t){
+    }
+};
+template < typename ... ARGS>
+ostream& operator << (ostream& strm, const tuple<ARGS ...>& t){
+    strm<<"[";
+    PRINT_TUPLE<0, sizeof ... (ARGS), ARGS ... >::print_t(strm, t);
+    strm<<"]";
+}
+
+std::tuple<int64_t, vector<int64_t>>  read_cin(){
+    int64_t n;
+    cin>>n;
+    std::vector<int64_t> numbers_of_rocks( n, 0 ); 
+    //Supplementary variables
+    //for (int i=0; i<numbers_of_>)string input_nrocks;
+    int64_t i = 0;
+    int64_t x;
+    while ((i<n)&& cin >> x ) {
+        numbers_of_rocks.at(i)= x;
+        i+=1;
+    }
+    // entered a fail state
+    cin.clear();
+    // need to at least read a character
+    cin.get();
+    return std::tuple<int64_t, vector<int64_t> >(n, numbers_of_rocks);
+}
+
+int main()
+{
+    //Amount of heaps - N, others are the number of rocks there
+    int64_t n;
+    std::vector<int64_t> num_of_rocks;
+    num_of_rocks.reserve(MAX_N);
+    tie(n, num_of_rocks) = read_cin();
+    n = static_cast<int64_t>(n);
+    num_of_rocks = static_cast<vector<int64_t>>(num_of_rocks);
+    //Why sort and exactly stable is needed?
+    //1 minmax_element returns first minimal and the last! maximal, so I need to sort
+    //2 because of MAX_N there is possible situation of all! elements of vec to equal each other
+    //3 the order- ascending! sorting Error!
+    //stable_sort(num_of_rocks.begin(), num_of_rocks.end());//, greater<int>()
+
+    int64_t min_rock_num, max_rock_num = 0;
+    int64_t maximum=0;
+    int64_t all_rocks_neg, all_rocks_pos, all_rocks  = 0;
+    //if n =1 => min_element = max_element
+    auto neg_num_of_rocks = num_of_rocks;
+    if (num_of_rocks.size()>1){
+    auto [min_rn, max_rn] = minmax_element(num_of_rocks.begin(), num_of_rocks.end());
+    int64_t minstart = min_rn - num_of_rocks.begin();
+    int64_t maxend =max_rn - num_of_rocks.begin();
+    if (minstart< maxend){
+    all_rocks_pos= accumulate(min_rn, max_rn+1, 0.0);
+ 
+    }
+    else if (minstart> maxend){
+        all_rocks_pos= accumulate(max_rn, min_rn+1, 0.0);
+        
+    }
+
+    std::transform(neg_num_of_rocks.cbegin(), neg_num_of_rocks.cend(), neg_num_of_rocks.begin(),std::negate<int64_t>());
+    auto [min_rnn, max_rnn] = minmax_element(neg_num_of_rocks.begin(), neg_num_of_rocks.end());
+    int64_t minstartt = min_rnn - neg_num_of_rocks.begin();
+    int64_t maxendd =max_rnn - neg_num_of_rocks.begin();
+    //apply algorithm to the opposite situation
+    if (minstartt< maxendd){
+        all_rocks_neg= -accumulate(min_rnn, max_rnn+1,  0.0);
+      
+    }
+    else if (minstartt> maxendd){
+         all_rocks_neg= -accumulate(max_rnn, min_rnn+1, 0.0);
+         
+    }
+
+       maximum  = max(all_rocks_neg, all_rocks_pos);
+    }
+    else{//contiguous stored container
+       maximum = accumulate(num_of_rocks.begin(), num_of_rocks.end(), 0);
+    } 
+    cout<<maximum;
+    return 0;
+}
