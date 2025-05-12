@@ -1,0 +1,126 @@
+#include <stdio.h>
+//#include <format>
+#include <string_view>
+#include <cstdint>
+#include <cmath>
+#include <iostream>
+#include <iterator>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
+#include <vector>
+#include <numeric>
+#include <string>
+#include <tuple>
+#include <algorithm>    // std::max
+#include <iomanip>
+
+using namespace std;
+const static int LINE_NUMBERS = 2;
+const static int MAX_MATRIX_SIZE = 101;
+
+template <typename T>
+bool all_elements_equal(vector<T> const &v){
+    return adjacent_find(v.begin(),v.end(), not_equal_to<T>()) == v.end();
+}
+template <typename SEP, typename ELEM_T>
+void PRINT_VEC_WITH(const vector<ELEM_T>& vec_to_display, SEP separator){
+        //cout<<"Equal?(except the mid-point) : "<< equality_of_elements<<endl;
+    for (const auto & bcf : vec_to_display){
+        //Just pretty print
+        if (all_elements_equal(vec_to_display)){
+           cout<<bcf<<" "<<separator<<" ";
+        }
+        else if(bcf !=*(vec_to_display.end() -1)){
+        cout<<bcf<<" "<<separator<<" ";}
+        else{
+           cout<<bcf<<endl;
+        }
+    }
+}
+
+std::tuple<int64_t, vector<double_t>>  read_cin(){
+    //The corresponding number of input lines
+    //and auxiliary variables to accept them
+    int64_t i = LINE_NUMBERS;
+    int64_t initial_val = 0;
+    vector<double_t> initial_vec(MAX_MATRIX_SIZE, initial_val); 
+    int64_t matrix_size = 0;
+    //Now get integer and line from cin to string
+      std::string line_i;
+    while (i >0 && std::getline(cin, line_i, '\n')){
+      std::istringstream iss(line_i);
+      double_t n;
+      vector<double_t> v_init;
+      if (i == LINE_NUMBERS){
+           iss >> matrix_size;
+           //cout<<"Entered matrix_size: "<<matrix_size<<endl;
+      }
+      else if (i == LINE_NUMBERS - 1){
+          initial_vec.assign(matrix_size, initial_val);
+           while (iss >> n)
+            {
+            v_init.push_back(static_cast<double_t>(n));
+            }
+            initial_vec = move(v_init);
+          //PRINT_VEC_WITH<string, double_t>(initial_vec, ",");
+      }
+      else{
+            //cout<<"  mok  ";
+            i--;
+      }
+      i--;
+    }
+    return std::tuple<int64_t, vector<double_t>>(matrix_size, initial_vec);
+}
+template <typename VEL>
+vector<VEL> erase_all_with_val(vector<VEL> vec_to_cut, VEL redundant_el){
+    vec_to_cut.erase(
+            remove(vec_to_cut.begin(), vec_to_cut.end(), 
+            static_cast<VEL>(redundant_el)), vec_to_cut.end());
+    auto ret = vec_to_cut;
+    return ret;
+}
+int main() {
+      //std::vector<double_t> fr(MAX_MATRIX_SIZE, .0);
+      //int64_t matrix_size = 0;
+      auto [matrix_size, initial_vec] = read_cin();
+      std::vector<double_t> fr = erase_all_with_val<double_t>(initial_vec, 0);
+      vector<double_t> nrow(fr.begin()+1, fr.end());
+      /*for(const auto& a: nrow){
+        auto ind = nrow.size()-1;
+        if (nrow.size()>1){
+            ind =nrow.size()-2;
+        }
+            (a == nrow[ind])? 
+            cout<<a<<" \t " : cout<<a<<" \n ";
+      }*/
+     double_t result = 0.0;
+      auto frs = fr.size();
+      auto nrs = nrow.size();
+      vector<double_t> coefficents(frs, 0.);
+      for(auto i = 0; i!= frs; i++){
+            //First take known coefficents
+            double_t a_i = fr.at(i)/fr.at(0);
+            //cout<<"a_i : "<<a_i<<endl;
+            coefficents[i] = a_i;
+      }
+      double_t first_row_sum = accumulate(fr.begin(), fr.end(), 0.0);
+      result+=first_row_sum;
+      //cout<<"result : "<<result<<endl;
+      //Then iterate over rows to calculate sums
+      for (auto i = 1; i!= frs; i++){
+          vector<double_t> row_i(frs, 0.0);
+          //Fill row
+          for (auto j=0; j!=frs; j++){
+            double_t ij_th_elem = coefficents.at(i) * coefficents.at(j) * fr[0];
+            
+            //cout<<"ij_th_elem : "<<ij_th_elem<<endl;
+            row_i[j] =ij_th_elem;
+          }
+        double_t ij_row_sum = accumulate(row_i.begin(), row_i.end(), 0.0);
+        result+=ij_row_sum;
+      }
+      cout<<setprecision(4)<<result;
+      return 0;
+}
