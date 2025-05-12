@@ -1,0 +1,102 @@
+#include <cstdint>
+#include <cmath>
+#include <iostream>
+#include <iterator>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
+#include <vector>
+#include <string>
+#include <tuple>
+#include <algorithm>    // std::max
+
+
+
+using namespace std;
+
+
+auto read_cin_at(){
+//Read up special data
+    //int64_t N, T, S;
+    string input_str;
+    getline(cin, input_str);
+    stringstream ss(input_str);
+    auto fint = istream_iterator<int>{ss};//first integer iter
+    auto lint = istream_iterator<int>{};//last integer iter
+    stringstream().swap(ss);
+    input_str.clear();
+    getline(cin, input_str);
+    auto fvel = istream_iterator<int>{ss};//first integer iter
+    auto lvel = istream_iterator<int>{};//last integer iter
+    vector<int64_t> input_f(fint, lint);
+    vector<int64_t> Sl =[input_f](){vector<int64_t> buf; buf.reserve(input_f[0]);return buf;}();
+    cout<<Sl.capacity();
+    Sl.assign(fvel, lvel);
+    struct _ {
+        vector<int64_t> fl, fv;
+    };
+    return _{input_f, Sl};
+}
+
+std::tuple<int64_t, int64_t, int64_t, vector<int64_t>> read_cin(){
+    //Read up special data
+    int64_t n, t, s;
+    cin>>n>>t>>s;
+   
+    //Then remaining according to the first input
+    vector<int64_t> velocities( n, 0 );
+    // loop will end when stream is exhausted
+    int64_t i = 0;
+    int64_t x;
+    // while we read an int, add it to our vector
+    while ((i<n)&& cin >> x ) {
+        
+        velocities.at(i)= x;
+        i+=1;
+        }
+
+    // entered a fail state
+    cin.clear();
+    // need to at least read a character
+    cin.get();
+    return std::tuple<int64_t, int64_t, int64_t, vector<int64_t> >(n, t, s, velocities);
+}
+
+void create_output(int takeovers){
+    ofstream myfile ("OutputRace.txt");
+  if (myfile.is_open())
+  {
+    myfile << takeovers;
+    myfile.close();
+  }
+  else cout << "Unable to open file";
+}
+
+int main()
+{
+    //Travel time - T, Number of cars - N, S - the lenght of track(on the first input line)
+    int64_t N, T, S;
+    std::vector<int64_t> velocities;
+    tie(N, T, S, velocities) = read_cin();
+    auto v1 = velocities[0];
+    int64_t L1 = v1 * T;
+    double l1 = static_cast<double>(L1)/S;
+    double integl1;
+    double fracl1 = modf(l1, &integl1);
+    int64_t all_takeovers = 0;
+    for (auto& vi : velocities) {
+        //Full mileage(dimensionless units although) : integer
+        int64_t Li = vi * T;
+        //Number of loops: double
+        double li = static_cast<double>(Li)/S;
+        double integli;
+        double fracli = modf(li, &integli);
+        double all_t;
+        double fracall_t = modf(max((l1 - li-0.0001), 0.0), &all_t);
+        all_takeovers+= all_t;
+    }
+
+    cout<<all_takeovers;
+    create_output(all_takeovers);
+    return 0;
+}
