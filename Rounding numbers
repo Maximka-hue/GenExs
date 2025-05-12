@@ -1,0 +1,41 @@
+def adjust_rounding(n, x, a):
+    # Calculate b_i for each a_i
+    total_a = sum(a)
+    b = [x * a_i / total_a for a_i in a]
+    
+    # Sort the elements by the fractional part of b in descending order
+    # The elements with the largest fractional part will be rounded up preferentially
+    fractional_parts = [(i, b_i - int(b_i)) for i, b_i in enumerate(b)]
+    fractional_parts.sort(key=lambda x: x[1], reverse=True)
+    
+    # Distribute x by assigning floor(b_i) to each c_i and then distributing the remainder
+    c = [int(b_i) for b_i in b]
+    remainder = x - sum(c)
+    
+    for i, _ in fractional_parts[:remainder]:
+        c[i] += 1
+
+    return c
+
+def process_input_output(input_path, output_path):
+    with open(input_path, 'r') as file:
+        lines = file.readlines()
+
+    results = []
+    i = 0
+    while i < len(lines):
+        n, x = map(int, lines[i].strip().split())
+        a = list(map(int, lines[i + 1].strip().split()))
+        i += 2
+        results.append(adjust_rounding(n, x, a))
+
+    with open(output_path, 'w') as file:
+        for result in results:
+            file.write(' '.join(map(str, result)) + '\n')
+
+# Paths to the input and output files
+input_path = 'input.txt'
+output_path = 'output.txt'
+
+# Process the input and generate the output
+process_input_output(input_path, output_path)
