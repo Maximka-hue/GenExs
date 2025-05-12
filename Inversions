@@ -1,0 +1,136 @@
+from time import sleep
+from threading import Thread
+
+def calculate_inversions(p):
+    """Function to count inversions in a list."""
+    inversions = 0
+    for i in range(len(p)):
+        for j in range(i + 1, len(p)):
+            if p[i] > p[j]:
+                inversions += 1
+    return inversions
+def gcd(a, b):
+    """ Function to calculate the greatest common divisor."""
+    while b:
+        #print(a,b,"  ")
+        a, b = b, (a % b)
+    return a
+def calculate_total_inversions(n, p):
+    """ Calculate the total number of inversions after one swap ... for all pairs!"""
+    total_inversions = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            p[i], p[j] = p[j], p[i]
+            #print( p[i], p[j])
+            total_inversions += calculate_inversions(p)
+            p[i], p[j] = p[j], p[i]
+            #print( p[i], p[j])
+            #print(p)
+    return total_inversions
+def average_inversions(n, p):
+    total_inversions = calculate_total_inversions(n, p)
+    num_swaps = n * (n - 1) // 2 #integer division
+    denominator = num_swaps
+    common_divisor = gcd(total_inversions, denominator)
+    reduced_num = total_inversions//common_divisor
+    reduced_denom  = denominator // common_divisor
+    #print(total_inversions," vs  ", reduced_num)
+    #print(denominator," vs  ", reduced_denom)
+    return f"{reduced_num}/{reduced_denom}"
+
+def average_inversions_simple(n, p):
+    total_inversions = calculate_total_inversions(n, p)
+    num_swaps = n * (n - 1) // 2 #integer division
+    return f"{total_inversions} / {num_swaps}"
+# Read input from 'input.txt'
+with open('input.txt', 'r') as file:
+    n = int(file.readline().strip())
+    p = list(map(int, file.readline().split()))
+
+# Calculate the average number of inversions
+average = average_inversions(n, p)
+
+# Write the result to 'output.txt'
+with open('output.txt', 'w') as file:
+    file.write(average + '\n')
+
+"""
+from time import sleep
+from threading import Thread
+
+def calculate_inversions(p):
+    inversions = 0
+    for i in range(len(p)):
+        for j in range(i + 1, len(p)):
+            if p[i] > p[j]:
+                inversions += 1
+    return inversions
+def gcd(a, b):
+    while b:
+        #print(a,b,"  ")
+        a, b = b, (a % b)
+    return a
+class InversionThread(Thread):
+    # constructor
+    def __init__(self, p):
+        # execute the base constructor
+        Thread.__init__(self)
+        # set a default value
+        self.inversions = 0
+        self.inv_data  = p
+    # function executed in a new thread
+    def run(self):
+        # store data in an instance variableinversions = 0
+        for i in range(len(self.inv_data)):
+            for j in range(i + 1, len(self.inv_data)):
+                #print(self.inv_data)
+                if self.inv_data[i] > self.inv_data[j]:
+                    self.inversions  += 1
+
+def calculate_total_inversions(n, p):
+    total_inversions = 0
+    threads = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            p[i], p[j] = p[j], p[i]
+            #print( p[i], p[j])
+            # create a new thread
+            thread = InversionThread(p)
+            threads.append(thread)
+            # start the thread
+            thread.start()
+            p[i], p[j] = p[j], p[i]
+            #print( p[i], p[j])
+            #print(p)
+    for threadith in threads:
+        # wait for the thread to finish
+        threadith.join()
+        # get the value returned from the thread
+        data_inv = threadith.inversions
+        #print(total_inversions)
+        total_inversions += data_inv        
+    return total_inversions
+def average_inversions(n, p):
+    total_inversions = calculate_total_inversions(n, p)
+    num_swaps = n * (n - 1) // 2 #integer division
+    denominator = num_swaps
+    common_divisor = gcd(total_inversions, denominator)
+    reduced_num = total_inversions//common_divisor
+    reduced_denom  = denominator // common_divisor
+    #print(total_inversions," vs  ", reduced_num)
+    #print(denominator," vs  ", reduced_denom)
+    return f"{reduced_num}/{reduced_denom}"
+
+def average_inversions_simple(n, p):
+    total_inversions = calculate_total_inversions(n, p)
+    num_swaps = n * (n - 1) // 2 #integer division
+    return f"{total_inversions} / {num_swaps}"
+# Read input from 'input.txt'
+with open('input.txt', 'r') as file:
+    n = int(file.readline().strip())
+    p = list(map(int, file.readline().split()))
+
+# Calculate the average number of inversions
+average = average_inversions(n, p)
+print(average)
+"""
